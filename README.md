@@ -191,11 +191,11 @@ if err != nil {
 
 ## Documentation & Support
 
-- [Full Go SDK Documentation](../docs/sdk/go-sdk/)
-- [API Reference](https://nanonets.com/documentation/)
+- [Full Go SDK Documentation](https://apidocs.nanonets.com/docs/sdk/go-sdk/)
+- [API Reference](https://apidocs.nanonets.com)
 - [Nanonets Dashboard](https://app.nanonets.com/)
 - [Get your API Key](https://app.nanonets.com/#/keys)
 
 ---
 
-For detailed request/response formats, see the [Go SDK docs](../docs/sdk/go-sdk/) and the [Postman collection](../postman/nanonets-document-processing.json). 
+For detailed request/response formats, see the [Go SDK docs](https://apidocs.nanonets.com/docs/sdk/go-sdk/) and the [Postman collection](https://www.postman.com/universal-space-243293/nanonets/collection/gn1ruqx/nanonets-workflow-management). 
