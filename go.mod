@@ -1,4 +1,4 @@
-module nanonets
+module github.com/NanoNets/nanonets-go
 
 go 1.18
 
