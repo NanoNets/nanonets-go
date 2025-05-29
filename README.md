@@ -61,7 +61,7 @@ func main() {
         fmt.Println("Error creating workflow:", err)
         return
     }
-    workflowID := workflow.WorkflowID
+    workflowID := workflow.ID
     fmt.Println("Created workflow:", workflowID)
 
     // Configure fields and table headers

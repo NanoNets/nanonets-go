@@ -13,18 +13,25 @@ import (
 
 // Client represents a Nanonets API client
 type Client struct {
-	APIKey  string
-	BaseURL string
-	Client  *http.Client
+	APIKey     string
+	BaseURL    string
+	Client     *http.Client
+	Workflows  *Workflows
+	Documents  *Documents
+	Moderation *Moderation
 }
 
 // NewClient creates a new Nanonets API client
 func NewClient(apiKey string) *Client {
-	return &Client{
+	c := &Client{
 		APIKey:  apiKey,
 		BaseURL: "https://app.nanonets.com/api/v4",
 		Client:  &http.Client{},
 	}
+	c.Workflows = &Workflows{client: c}
+	c.Documents = &Documents{client: c}
+	c.Moderation = &Moderation{client: c}
+	return c
 }
 
 // Workflows represents the workflows API
@@ -39,15 +46,22 @@ func (w *Workflows) Create(req CreateWorkflowRequest) (*Workflow, error) {
 		return nil, err
 	}
 
-	resp, err := w.client.Client.Post(
-		fmt.Sprintf("%s/workflows", w.client.BaseURL),
-		"application/json",
-		bytes.NewBuffer(jsonData),
-	)
+	httpReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/workflows", w.client.BaseURL), bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
+
+	resp, err := w.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var workflow Workflow
 	if err := json.NewDecoder(resp.Body).Decode(&workflow); err != nil {
@@ -58,11 +72,22 @@ func (w *Workflows) Create(req CreateWorkflowRequest) (*Workflow, error) {
 
 // Get retrieves a workflow by ID
 func (w *Workflows) Get(workflowID string) (*Workflow, error) {
-	resp, err := w.client.Client.Get(fmt.Sprintf("%s/workflows/%s", w.client.BaseURL, workflowID))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows/%s", w.client.BaseURL, workflowID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
+
+	resp, err := w.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var workflow Workflow
 	if err := json.NewDecoder(resp.Body).Decode(&workflow); err != nil {
@@ -73,11 +98,22 @@ func (w *Workflows) Get(workflowID string) (*Workflow, error) {
 
 // List retrieves all workflows
 func (w *Workflows) List() ([]Workflow, error) {
-	resp, err := w.client.Client.Get(fmt.Sprintf("%s/workflows", w.client.BaseURL))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows", w.client.BaseURL), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
+
+	resp, err := w.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var workflows []Workflow
 	if err := json.NewDecoder(resp.Body).Decode(&workflows); err != nil {
@@ -97,6 +133,7 @@ func (w *Workflows) SetFields(workflowID string, req SetFieldsRequest) error {
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := w.client.Client.Do(httpReq)
@@ -104,6 +141,11 @@ func (w *Workflows) SetFields(workflowID string, req SetFieldsRequest) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -119,6 +161,7 @@ func (w *Workflows) UpdateField(workflowID, fieldID string, req UpdateFieldReque
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := w.client.Client.Do(httpReq)
@@ -126,6 +169,11 @@ func (w *Workflows) UpdateField(workflowID, fieldID string, req UpdateFieldReque
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -136,12 +184,18 @@ func (w *Workflows) DeleteField(workflowID, fieldID string) error {
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
 
 	resp, err := w.client.Client.Do(httpReq)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -157,6 +211,7 @@ func (w *Workflows) UpdateMetadata(workflowID string, req UpdateMetadataRequest)
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := w.client.Client.Do(httpReq)
@@ -164,6 +219,11 @@ func (w *Workflows) UpdateMetadata(workflowID string, req UpdateMetadataRequest)
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -179,6 +239,7 @@ func (w *Workflows) UpdateSettings(workflowID string, req UpdateSettingsRequest)
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := w.client.Client.Do(httpReq)
@@ -187,16 +248,32 @@ func (w *Workflows) UpdateSettings(workflowID string, req UpdateSettingsRequest)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
+
 	return nil
 }
 
 // GetTypes retrieves available workflow types
 func (w *Workflows) GetTypes() ([]WorkflowType, error) {
-	resp, err := w.client.Client.Get(fmt.Sprintf("%s/workflows/types", w.client.BaseURL))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows/types", w.client.BaseURL), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(w.client.APIKey, "")
+
+	resp, err := w.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var types []WorkflowType
 	if err := json.NewDecoder(resp.Body).Decode(&types); err != nil {
@@ -211,7 +288,7 @@ type Documents struct {
 }
 
 // Upload uploads a document to a workflow
-func (d *Documents) Upload(workflowID string, req UploadDocumentRequest) (*UploadResult, error) {
+func (d *Documents) Upload(workflowID string, req UploadDocumentRequest) (*Document, error) {
 	file, err := os.Open(req.File)
 	if err != nil {
 		return nil, err
@@ -235,17 +312,25 @@ func (d *Documents) Upload(workflowID string, req UploadDocumentRequest) (*Uploa
 	}
 	writer.Close()
 
-	resp, err := d.client.Client.Post(
-		fmt.Sprintf("%s/workflows/%s/documents", d.client.BaseURL, workflowID),
-		writer.FormDataContentType(),
-		body,
-	)
+	httpReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/workflows/%s/documents", d.client.BaseURL, workflowID), body)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var result UploadResult
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
+
+	var result Document
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -254,11 +339,22 @@ func (d *Documents) Upload(workflowID string, req UploadDocumentRequest) (*Uploa
 
 // Get retrieves a document by ID
 func (d *Documents) Get(workflowID, documentID string) (*Document, error) {
-	resp, err := d.client.Client.Get(fmt.Sprintf("%s/workflows/%s/documents/%s", d.client.BaseURL, workflowID, documentID))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows/%s/documents/%s", d.client.BaseURL, workflowID, documentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var document Document
 	if err := json.NewDecoder(resp.Body).Decode(&document); err != nil {
@@ -269,11 +365,22 @@ func (d *Documents) Get(workflowID, documentID string) (*Document, error) {
 
 // List retrieves all documents for a workflow
 func (d *Documents) List(workflowID string) ([]Document, error) {
-	resp, err := d.client.Client.Get(fmt.Sprintf("%s/workflows/%s/documents", d.client.BaseURL, workflowID))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows/%s/documents", d.client.BaseURL, workflowID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var documents []Document
 	if err := json.NewDecoder(resp.Body).Decode(&documents); err != nil {
@@ -288,6 +395,7 @@ func (d *Documents) Delete(workflowID, documentID string) error {
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
 
 	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
@@ -295,16 +403,32 @@ func (d *Documents) Delete(workflowID, documentID string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
+
 	return nil
 }
 
 // GetFields retrieves fields for a document
 func (d *Documents) GetFields(workflowID, documentID string) ([]Field, error) {
-	resp, err := d.client.Client.Get(fmt.Sprintf("%s/workflows/%s/documents/%s/fields", d.client.BaseURL, workflowID, documentID))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows/%s/documents/%s/fields", d.client.BaseURL, workflowID, documentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var fields []Field
 	if err := json.NewDecoder(resp.Body).Decode(&fields); err != nil {
@@ -315,11 +439,22 @@ func (d *Documents) GetFields(workflowID, documentID string) ([]Field, error) {
 
 // GetTables retrieves tables for a document
 func (d *Documents) GetTables(workflowID, documentID string) ([]Table, error) {
-	resp, err := d.client.Client.Get(fmt.Sprintf("%s/workflows/%s/documents/%s/tables", d.client.BaseURL, workflowID, documentID))
+	httpReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/workflows/%s/documents/%s/tables", d.client.BaseURL, workflowID, documentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var tables []Table
 	if err := json.NewDecoder(resp.Body).Decode(&tables); err != nil {
@@ -344,6 +479,7 @@ func (m *Moderation) UpdateField(workflowID, documentID, pageID, fieldDataID str
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -351,6 +487,11 @@ func (m *Moderation) UpdateField(workflowID, documentID, pageID, fieldDataID str
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -366,6 +507,7 @@ func (m *Moderation) AddField(workflowID, documentID, pageID string, req AddFiel
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -373,6 +515,11 @@ func (m *Moderation) AddField(workflowID, documentID, pageID string, req AddFiel
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -383,12 +530,18 @@ func (m *Moderation) DeleteField(workflowID, documentID, pageID, fieldDataID str
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 
 	resp, err := m.client.Client.Do(httpReq)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -404,6 +557,7 @@ func (m *Moderation) AddTable(workflowID, documentID, pageID string, req AddTabl
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -411,6 +565,11 @@ func (m *Moderation) AddTable(workflowID, documentID, pageID string, req AddTabl
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -421,12 +580,18 @@ func (m *Moderation) DeleteTable(workflowID, documentID, pageID, tableID string)
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 
 	resp, err := m.client.Client.Do(httpReq)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -442,6 +607,7 @@ func (m *Moderation) UpdateTableCell(workflowID, documentID, pageID, tableID, ce
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -449,6 +615,11 @@ func (m *Moderation) UpdateTableCell(workflowID, documentID, pageID, tableID, ce
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -464,6 +635,7 @@ func (m *Moderation) AddTableCell(workflowID, documentID, pageID, tableID string
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -471,6 +643,11 @@ func (m *Moderation) AddTableCell(workflowID, documentID, pageID, tableID string
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -481,12 +658,18 @@ func (m *Moderation) DeleteTableCell(workflowID, documentID, pageID, tableID, ce
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 
 	resp, err := m.client.Client.Do(httpReq)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -502,6 +685,7 @@ func (m *Moderation) VerifyField(workflowID, documentID, pageID, fieldDataID str
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -509,6 +693,11 @@ func (m *Moderation) VerifyField(workflowID, documentID, pageID, fieldDataID str
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -524,6 +713,7 @@ func (m *Moderation) VerifyTableCell(workflowID, documentID, pageID, tableID, ce
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -531,6 +721,11 @@ func (m *Moderation) VerifyTableCell(workflowID, documentID, pageID, tableID, ce
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -546,6 +741,7 @@ func (m *Moderation) VerifyTable(workflowID, documentID, pageID, tableID string,
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -553,6 +749,11 @@ func (m *Moderation) VerifyTable(workflowID, documentID, pageID, tableID string,
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -568,6 +769,7 @@ func (m *Moderation) VerifyDocument(workflowID, documentID string, req VerifyDoc
 	if err != nil {
 		return err
 	}
+	httpReq.SetBasicAuth(m.client.APIKey, "")
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := m.client.Client.Do(httpReq)
@@ -575,6 +777,11 @@ func (m *Moderation) VerifyDocument(workflowID, documentID string, req VerifyDoc
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return nil
 }
@@ -613,14 +820,85 @@ type UploadDocumentRequest struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
-// Workflow represents a workflow
+// Workflow represents a workflow (full schema from API docs)
 type Workflow struct {
-	WorkflowID string `json:"workflow_id"`
+	ID           string           `json:"id"`
+	Description  string           `json:"description"`
+	WorkflowType string           `json:"workflow_type"`
+	Fields       []Field          `json:"fields"`
+	TableHeaders []TableHeader    `json:"table_headers"`
+	Settings     WorkflowSettings `json:"settings"`
+	CreatedAt    string           `json:"created_at"`
+	UpdatedAt    string           `json:"updated_at"`
 }
 
-// Document represents a document
+// WorkflowSettings represents workflow settings (e.g., table capture)
+type WorkflowSettings struct {
+	TableCapture bool `json:"table_capture"`
+}
+
+// Document represents a document (full schema from API docs)
 type Document struct {
-	DocumentID string `json:"document_id"`
+	DocumentID           string      `json:"document_id"`
+	Status               string      `json:"status"`
+	UploadedAt           string      `json:"uploaded_at"`
+	Metadata             interface{} `json:"metadata"`
+	OriginalDocumentName string      `json:"original_document_name"`
+	RawDocumentURL       string      `json:"raw_document_url"`
+	VerificationStatus   string      `json:"verification_status"`
+	VerificationStage    string      `json:"verification_stage"`
+	VerificationMessage  string      `json:"verification_message"`
+	AssignedReviewers    []string    `json:"assigned_reviewers"`
+	Pages                []Page      `json:"pages"`
+}
+
+// Page represents a page in a document
+// (nested under Document.Pages)
+type Page struct {
+	PageID     string   `json:"page_id"`
+	PageNumber int      `json:"page_number"`
+	ImageURL   string   `json:"image_url"`
+	Data       PageData `json:"data"`
+}
+
+// PageData contains fields and tables for a page
+// (nested under Page.Data)
+type PageData struct {
+	Fields map[string][]FieldData `json:"fields"`
+	Tables []Table                `json:"tables"`
+}
+
+// FieldData represents a single field value instance
+// (nested under PageData.Fields)
+type FieldData struct {
+	FieldDataID         string    `json:"field_data_id"`
+	Value               string    `json:"value"`
+	Confidence          float64   `json:"confidence"`
+	Bbox                []float64 `json:"bbox"`
+	VerificationStatus  string    `json:"verification_status"`
+	VerificationMessage string    `json:"verification_message"`
+	IsModerated         bool      `json:"is_moderated"`
+}
+
+// Table represents a table (nested under PageData.Tables)
+type Table struct {
+	TableID string      `json:"table_id"`
+	Bbox    []float64   `json:"bbox"`
+	Cells   []TableCell `json:"cells"`
+}
+
+// TableCell represents a cell in a table
+// (nested under Table.Cells)
+type TableCell struct {
+	CellID              string    `json:"cell_id"`
+	Row                 int       `json:"row"`
+	Col                 int       `json:"col"`
+	Header              string    `json:"header"`
+	Text                string    `json:"text"`
+	Bbox                []float64 `json:"bbox"`
+	VerificationStatus  string    `json:"verification_status"`
+	VerificationMessage string    `json:"verification_message"`
+	IsModerated         bool      `json:"is_moderated"`
 }
 
 // Field represents a field
@@ -631,11 +909,6 @@ type Field struct {
 // TableHeader represents a table header
 type TableHeader struct {
 	Name string `json:"name"`
-}
-
-// Table represents a table
-type Table struct {
-	TableID string `json:"table_id"`
 }
 
 // UploadResult represents the result of an upload
@@ -715,22 +988,30 @@ type Cell struct {
 }
 
 // UploadFromURL uploads a document to a workflow from a URL
-func (d *Documents) UploadFromURL(workflowID string, req UploadDocumentFromURLRequest) (*UploadResult, error) {
+func (d *Documents) UploadFromURL(workflowID string, req UploadDocumentFromURLRequest) (*Document, error) {
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := d.client.Client.Post(
-		fmt.Sprintf("%s/workflows/%s/documents/url", d.client.BaseURL, workflowID),
-		"application/json",
-		bytes.NewBuffer(jsonData),
-	)
+	httpReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/workflows/%s/documents", d.client.BaseURL, workflowID), bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var result UploadResult
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
+
+	var result Document
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -740,11 +1021,22 @@ func (d *Documents) UploadFromURL(workflowID string, req UploadDocumentFromURLRe
 // ListWithPagination retrieves documents for a workflow with pagination
 func (d *Documents) ListWithPagination(workflowID string, page, limit int) ([]Document, error) {
 	url := fmt.Sprintf("%s/workflows/%s/documents?page=%d&limit=%d", d.client.BaseURL, workflowID, page, limit)
-	resp, err := d.client.Client.Get(url)
+	httpReq, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	var documents []Document
 	if err := json.NewDecoder(resp.Body).Decode(&documents); err != nil {
@@ -756,11 +1048,22 @@ func (d *Documents) ListWithPagination(workflowID string, page, limit int) ([]Do
 // GetOriginalFile downloads the original document file
 func (d *Documents) GetOriginalFile(workflowID, documentID string) ([]byte, error) {
 	url := fmt.Sprintf("%s/workflows/%s/documents/%s/original", d.client.BaseURL, workflowID, documentID)
-	resp, err := d.client.Client.Get(url)
+	httpReq, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.SetBasicAuth(d.client.APIKey, "")
+
+	resp, err := d.client.Client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s (status %d)", string(body), resp.StatusCode)
+	}
 
 	return io.ReadAll(resp.Body)
 }
@@ -776,7 +1079,7 @@ type WorkflowType struct {
 
 // UploadDocumentFromURLRequest represents a request to upload a document from a URL
 type UploadDocumentFromURLRequest struct {
-	URL      string            `json:"url"`
-	Async    bool              `json:"async"`
-	Metadata map[string]string `json:"metadata"`
+	URL      string `json:"document_url"`
+	Async    bool   `json:"async"`
+	Metadata string `json:"metadata"`
 }
